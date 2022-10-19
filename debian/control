@@ -1,0 +1,32 @@
+Source: ruby-redis
+Section: ruby
+Priority: optional
+Maintainer: Debian Ruby Team <pkg-ruby-extras-maintainers@lists.alioth.debian.org>
+Uploaders: Pirate Praveen <praveen@debian.org>
+Build-Depends: debhelper-compat (= 13),
+               gem2deb (>= 1),
+               netcat-openbsd,
+               rake,
+               redis-server,
+               redis-tools,
+               ruby,
+               ruby-mocha
+Standards-Version: 4.5.1
+Vcs-Git: https://salsa.debian.org/ruby-team/ruby-redis.git
+Vcs-Browser: https://salsa.debian.org/ruby-team/ruby-redis
+Homepage: https://github.com/redis/redis-rb
+Testsuite: autopkgtest-pkg-ruby
+XS-Ruby-Versions: all
+Rules-Requires-Root: no
+
+Package: ruby-redis
+Architecture: all
+XB-Ruby-Versions: ${ruby:Versions}
+Depends: ${misc:Depends},
+         ${ruby:Depends},
+         ${shlibs:Depends}
+Breaks: ruby-fakeredis (<< 0.8.0-4~)
+Description: Ruby client library for Redis
+ A Ruby client that tries to match Redis' API one-to-one, while still
+ providing an idiomatic interface. It features thread-safety,
+ client-side sharding, pipelining, and an obsession for performance.

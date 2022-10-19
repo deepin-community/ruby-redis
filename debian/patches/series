@@ -1,0 +1,5 @@
+use-system-redis.patch
+disable-encoding-check.patch
+disable-ssl-test.patch
+use-system-libs.patch
+disable-buildd-failed-test.patch

@@ -1,0 +1,43 @@
+Description: Use system libs in tests
+ Use the libs which are in $LOAD_PATH instead of using the relative paths.
+Author: Jongmin Kim <jmkim@pukyong.ac.kr>
+Forwarded: not-needed
+Last-Update: 2020-09-27
+--- a/test/support/cluster/orchestrator.rb
++++ b/test/support/cluster/orchestrator.rb
+@@ -1,6 +1,6 @@
+ # frozen_string_literal: true
+ 
+-require_relative '../../../lib/redis'
++require 'redis'
+ 
+ class ClusterOrchestrator
+   SLOT_SIZE = 16_384
+--- a/test/helper.rb
++++ b/test/helper.rb
+@@ -9,9 +9,9 @@
+ 
+ ENV["DRIVER"] ||= "ruby"
+ 
+-require_relative "../lib/redis"
+-require_relative "../lib/redis/distributed"
+-require_relative "../lib/redis/connection/#{ENV['DRIVER']}"
++require "redis"
++require "redis/distributed"
++require "redis/connection/#{ENV['DRIVER']}"
+ 
+ require_relative "support/redis_mock"
+ require_relative "support/connection/#{ENV['DRIVER']}"
+--- a/test/synchrony_driver.rb
++++ b/test/synchrony_driver.rb
+@@ -3,8 +3,8 @@
+ require "em-synchrony"
+ require "em-synchrony/connection_pool"
+ 
+-require_relative "../lib/redis"
+-require_relative "../lib/redis/connection/synchrony"
++require_relative "redis"
++require_relative "redis/connection/synchrony"
+ 
+ require_relative "helper"
+ 

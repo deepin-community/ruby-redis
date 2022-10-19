@@ -1,0 +1,165 @@
+ruby-redis (4.2.5-2) UNRELEASED; urgency=medium
+
+  * update
+
+ -- Debian Ruby Team <pkg-ruby-extras-maintainers@lists.alioth.debian.org>  Thu, 21 Jul 2022 18:17:10 +0800
+
+ruby-redis (4.2.5-2) unstable; urgency=medium
+
+  * skip test: test_large_payload
+  * update version
+
+ -- wangxiangyu <wangxiangyu@uniontech.com>  Thu, 21 Jul 2022 17:32:12 +0100
+
+ruby-redis (4.2.5-1) unstable; urgency=medium
+
+  * Team upload
+  * New upstream version 4.2.5
+    + update client list argument for redis 6.0 (Closes: #975845)
+  * control
+    + add ruby, rake as explicit build-dependencies
+    + fix Pirate Praveen's name, modified inadvertently in a previous upload
+  * Bump Standards-Version to 4.5.1 (no changes needed)
+
+ -- Cédric Boutillier <boutil@debian.org>  Wed, 16 Dec 2020 16:31:12 +0100
+
+ruby-redis (4.2.2-2) unstable; urgency=medium
+
+  * Add the indication that it Breaks ruby-fakeredis << 0.8.0-4
+
+ -- Cédric Boutillier <boutil@debian.org>  Mon, 26 Oct 2020 23:12:16 +0100
+
+ruby-redis (4.2.2-1) unstable; urgency=medium
+
+  * Team upload
+  * New upstream version 4.2.2
+    + Fix test failures redis-server 6.x (Closes: #963352)
+  * Refresh packaging
+    + Add .gitattributes to keep unwanted files out of the source
+      package
+    + Set debhelper compatibility level to 13
+    + Explicitly state that d/rules does not require root
+    + Enable dependency check in d/rules
+    + Add upstream metadata
+  * Refresh patches
+  * Update team name
+  * Trim trailing whitespace.
+  * Don't install content of bin/
+
+ -- Cédric Boutillier <boutil@debian.org>  Sun, 27 Sep 2020 23:46:13 +0200
+
+ruby-redis (4.1.2-4) unstable; urgency=medium
+
+  * Disable a test that failed on buildd
+  * Bump Standards-Version to 4.5.0 (no changes needed)
+
+ -- Pirate Praveen <praveen@debian.org>  Sun, 29 Mar 2020 19:00:39 +0530
+
+ruby-redis (4.1.2-3) unstable; urgency=medium
+
+  * Reupload to unstable
+
+ -- Pirate Praveen <praveen@debian.org>  Sun, 22 Mar 2020 15:01:44 +0530
+
+ruby-redis (4.1.2-2) experimental; urgency=medium
+
+  * Team upload
+
+  [ Jongmin Kim ]
+  * d/patches: Make as similar to upstream require paths
+  * d/patches: Fix typo
+  * d/control: Fix incorrect Vcs-* URLs
+  * d/patches: Rename use-absolute-path-in-test.patch to use-system-libs.patch
+
+  [ Utkarsh Gupta ]
+  * Add salsa-ci.yml
+
+ -- Sruthi Chandran <srud@debian.org>  Wed, 16 Oct 2019 21:35:34 +0530
+
+ruby-redis (4.1.2-1) experimental; urgency=medium
+
+  * Team upload
+  * New upstream version 4.1.2
+      + Refresh test suite for new upstream
+      + Port from makefile to ruby-tests.rake for ruby-team/meta/test
+  * d/watch: Move to github.com/redis/redis-rb for importing tests
+  * d/patches:
+      + Refresh patches for new upstream
+      + Patch for using absolute load path in tests
+  * d/changelog: Fix lintian P: file-contains-trailing-whitespace
+  * d/copyright: Fix lintian P: insecure-copyright-format-uri
+  * d/control:
+      + Bump Standards-Version to 4.3.0 (no changes needed)
+      + Use salsa.debian.org in Vcs-* fields
+
+ -- Jongmin Kim <jmkim@pukyong.ac.kr>  Sun, 16 Jun 2019 03:15:17 +0900
+
+ruby-redis (3.3.5-1) unstable; urgency=medium
+
+  * Use https in watch file
+  * New upstream version 3.3.5
+  * Bump Standards-Version to 4.2.1 (no changes needed)
+
+ -- Pirate Praveen <praveen@debian.org>  Thu, 11 Oct 2018 22:44:07 +0530
+
+ruby-redis (3.3.3-1) unstable; urgency=medium
+
+  * New upstream release
+  * Bump standards version to 4.0.0
+
+ -- Pirate Praveen <praveen@debian.org>  Wed, 26 Jul 2017 13:57:06 +0530
+
+ruby-redis (3.2.2-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream version, requires test-unit for testing.
+  * Set Standards-Version to 3.9.7 (no addtl. changes)
+  * Use secure protocol for Vcs-Git URL.
+
+ -- Christian Hofstaedtler <zeha@debian.org>  Wed, 02 Mar 2016 13:15:38 +0100
+
+ruby-redis (3.2.1-3) unstable; urgency=medium
+
+  * Team upload.
+  * Release to unstable.
+
+ -- Christian Hofstaedtler <zeha@debian.org>  Sun, 23 Aug 2015 18:16:31 +0000
+
+ruby-redis (3.2.1-2) experimental; urgency=medium
+
+  * Team upload.
+  * Use upstream rake task for redis server (Closes: #796013).
+  * d/examples: Include examples files in Debian pacakge.
+  * d/docs: Include readme.md file in Debian package.
+  * d/patchs: Fix lintian warning quilt-patch-missing-description.
+  * d/control: Bumped up compat version to 9.
+  *            Use cgit and https for VCS-* URL.
+
+ -- Sebastien Badia <seb@sebian.fr>  Wed, 19 Aug 2015 21:44:17 +0200
+
+ruby-redis (3.2.1-1) experimental; urgency=medium
+
+  * New upstream release.
+  * Remove patch test_internal_random_port.patch (merged upstream).
+  * Use upstream rake task to start and stop redis.
+  * Bump standards version to 3.9.6 (no changes).
+
+ -- Pirate Praveen <praveen@debian.org>  Sun, 02 Aug 2015 11:24:57 +0530
+
+ruby-redis (3.1.0-1) unstable; urgency=medium
+
+  * Team upload.
+  * Imported Upstream version 3.1.0
+  * d/control: wrap-sort
+  * added patch to use random port on unit tests (Closes: #755320)
+
+ -- Jonas Genannt <jonas.genannt@capi2name.de>  Mon, 28 Jul 2014 19:40:29 +0200
+
+ruby-redis (3.0.7-1) unstable; urgency=low
+
+  * Initial release (Closes: #638825)
+    - Thanks to Achilleas Pipinellis from Fedora for help
+      fixing test failure due to encoding mismatch (tests
+      expected UTF-8, but we have ASCII in build environment).
+
+ -- Pirate Praveen <praveen@debian.org>  Tue, 20 May 2014 22:14:13 +0530

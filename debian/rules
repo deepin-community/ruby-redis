@@ -1,0 +1,16 @@
+#!/usr/bin/make -f
+
+export GEM2DEB_TEST_RUNNER = --check-dependencies
+export DH_RUBY = --gem-install
+export DH_RUBY_GEM_INSTALL_BLACKLIST_APPEND = bin/cluster_creator bin/build
+
+%:
+	dh $@ --buildsystem=ruby --with ruby
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf test/db/*
+
+override_dh_auto_install:
+	dh_auto_install
+	rm -rf debian/ruby-redis/usr/bin
