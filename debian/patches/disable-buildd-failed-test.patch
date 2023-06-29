@@ -1,9 +1,9 @@
 This test is failing on buildd only
 Last-Update: 2020-09-27
 
---- a/test/cluster_client_options_test.rb
-+++ b/test/cluster_client_options_test.rb
-@@ -66,7 +66,7 @@
+--- a/test/cluster/client_options_test.rb
++++ b/test/cluster/client_options_test.rb
+@@ -82,7 +82,7 @@
      build_another_client(invalid_option: true)
    end
  

@@ -8,12 +8,12 @@ Last-Update: 2020-09-27
 
 --- a/Rakefile
 +++ b/Rakefile
-@@ -17,7 +17,7 @@
-   t.libs = %w(lib test)
- 
-   if ARGV.size == 1
--    t.pattern = 'test/*_test.rb'
-+    t.test_files = FileList["test/*_test.rb"] - FileList["test/ssl_test.rb"]
-   else
-     t.test_files = ARGV[1..-1]
+@@ -9,7 +9,7 @@
+     Rake::TestTask.new(group) do |t|
+       t.libs << "test"
+       t.libs << "lib"
+-      t.test_files = FileList["test/#{group}/**/*_test.rb"]
++      t.test_files = FileList["test/#{group}/**/*_test.rb"] - FileList["test/#{group}/**/*ssl_test.rb"]
+       t.options = '-v' if ENV['CI'] || ENV['VERBOSE']
+     end
    end

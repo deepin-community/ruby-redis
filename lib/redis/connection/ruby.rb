@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
-require_relative "registry"
-require_relative "command_helper"
-require_relative "../errors"
+require "redis/connection/registry"
+require "redis/connection/command_helper"
+require "redis/errors"
+
 require "socket"
 require "timeout"
 
@@ -21,7 +22,7 @@ class Redis
         super(*args)
 
         @timeout = @write_timeout = nil
-        @buffer = "".dup
+        @buffer = "".b
       end
 
       def timeout=(timeout)
@@ -35,7 +36,8 @@ class Redis
       def read(nbytes)
         result = @buffer.slice!(0, nbytes)
 
-        result << _read_from_socket(nbytes - result.bytesize) while result.bytesize < nbytes
+        buffer = String.new(capacity: nbytes, encoding: Encoding::ASCII_8BIT)
+        result << _read_from_socket(nbytes - result.bytesize, buffer) while result.bytesize < nbytes
 
         result
       end
@@ -48,9 +50,9 @@ class Redis
         @buffer.slice!(0, crlf + CRLF.bytesize)
       end
 
-      def _read_from_socket(nbytes)
+      def _read_from_socket(nbytes, buffer = nil)
         loop do
-          case chunk = read_nonblock(nbytes, exception: false)
+          case chunk = read_nonblock(nbytes, buffer, exception: false)
           when :wait_readable
             unless wait_readable(@timeout)
               raise Redis::TimeoutError
@@ -132,7 +134,9 @@ class Redis
           # says it is readable (1.6.6, in both 1.8 and 1.9 mode).
           # Use the blocking #readpartial method instead.
 
-          def _read_from_socket(nbytes)
+          def _read_from_socket(nbytes, _buffer = nil)
+            # JRuby: Throw away the buffer as we won't need it
+            # but still need to support the max arity of 2
             readpartial(nbytes)
           rescue EOFError
             raise Errno::ECONNRESET
@@ -239,7 +243,7 @@ class Redis
         end
 
         def self.connect(host, port, timeout, ssl_params)
-          # Note: this is using Redis::Connection::TCPSocket
+          # NOTE: this is using Redis::Connection::TCPSocket
           tcp_sock = TCPSocket.connect(host, port, timeout)
 
           ctx = OpenSSL::SSL::SSLContext.new
@@ -380,6 +384,12 @@ class Redis
         format_reply(reply_type, line)
       rescue Errno::EAGAIN
         raise TimeoutError
+      rescue OpenSSL::SSL::SSLError => ssl_error
+        if ssl_error.message.match?(/SSL_read: unexpected eof while reading/i)
+          raise EOFError, ssl_error.message
+        else
+          raise
+        end
       end
 
       def format_reply(reply_type, line)

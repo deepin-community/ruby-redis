@@ -31,13 +31,13 @@ class Redis
       private
 
       def pick_details(details)
-        details.map do |command, detail|
-          [command, {
+        details.transform_values do |detail|
+          {
             first_key_position: detail[:first],
             write: detail[:flags].include?('write'),
             readonly: detail[:flags].include?('readonly')
-          }]
-        end.to_h
+          }
+        end
       end
 
       def dig_details(command, key)
@@ -53,8 +53,6 @@ class Redis
         when 'object' then 2
         when 'memory'
           command[1].to_s.casecmp('usage').zero? ? 2 : 0
-        when 'scan', 'sscan', 'hscan', 'zscan'
-          determine_optional_key_position(command, 'match')
         when 'xread', 'xreadgroup'
           determine_optional_key_position(command, 'streams')
         else

@@ -1,13 +1,14 @@
 # frozen_string_literal: true
 
-require_relative "command_helper"
-require_relative "registry"
-require_relative "../errors"
+require "redis/connection/registry"
+require "redis/connection/command_helper"
+require "redis/errors"
+
 require "em-synchrony"
 require "hiredis/reader"
 
-Kernel.warn(
-  "The redis synchrony driver is deprecated and will be removed in redis-rb 5.0. " \
+::Redis.deprecate!(
+  "The redis synchrony driver is deprecated and will be removed in redis-rb 5.0.0. " \
   "We're looking for people to maintain it as a separate gem, see https://github.com/redis/redis-rb/issues/915"
 )
 
@@ -129,11 +130,12 @@ class Redis
       def read
         type, payload = @connection.read
 
-        if type == :reply
+        case type
+        when :reply
           payload
-        elsif type == :error
+        when :error
           raise payload
-        elsif type == :timeout
+        when :timeout
           raise TimeoutError
         else
           raise "Unknown type #{type.inspect}"

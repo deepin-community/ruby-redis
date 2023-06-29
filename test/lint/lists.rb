@@ -2,6 +2,33 @@
 
 module Lint
   module Lists
+    def test_lmove
+      target_version "6.2" do
+        r.lpush("foo", "s1")
+        r.lpush("foo", "s2") # foo = [s2, s1]
+        r.lpush("bar", "s3")
+        r.lpush("bar", "s4") # bar = [s4, s3]
+
+        assert_nil r.lmove("nonexistent", "foo", "LEFT", "LEFT")
+
+        assert_equal "s2", r.lmove("foo", "foo", "LEFT", "RIGHT") # foo = [s1, s2]
+        assert_equal "s1", r.lmove("foo", "foo", "LEFT", "LEFT") # foo = [s1, s2]
+
+        assert_equal "s1", r.lmove("foo", "bar", "LEFT", "RIGHT") # foo = [s2], bar = [s4, s3, s1]
+        assert_equal ["s2"], r.lrange("foo", 0, -1)
+        assert_equal ["s4", "s3", "s1"], r.lrange("bar", 0, -1)
+
+        assert_equal "s2", r.lmove("foo", "bar", "LEFT", "LEFT") # foo = [], bar = [s2, s4, s3, s1]
+        assert_nil r.lmove("foo", "bar", "LEFT", "LEFT") # foo = [], bar = [s2, s4, s3, s1]
+        assert_equal ["s2", "s4", "s3", "s1"], r.lrange("bar", 0, -1)
+
+        error = assert_raises(ArgumentError) do
+          r.lmove("foo", "bar", "LEFT", "MIDDLE")
+        end
+        assert_equal "where_destination must be 'LEFT' or 'RIGHT'", error.message
+      end
+    end
+
     def test_lpush
       r.lpush "foo", "s1"
       r.lpush "foo", "s2"
@@ -119,6 +146,17 @@ module Lint
       assert_equal 1, r.llen("foo")
     end
 
+    def test_lpop_count
+      target_version("6.2") do
+        r.rpush "foo", "s1"
+        r.rpush "foo", "s2"
+
+        assert_equal 2, r.llen("foo")
+        assert_equal ["s1", "s2"], r.lpop("foo", 2)
+        assert_equal 0, r.llen("foo")
+      end
+    end
+
     def test_rpop
       r.rpush "foo", "s1"
       r.rpush "foo", "s2"
@@ -126,6 +164,17 @@ module Lint
       assert_equal 2, r.llen("foo")
       assert_equal "s2", r.rpop("foo")
       assert_equal 1, r.llen("foo")
+    end
+
+    def test_rpop_count
+      target_version("6.2") do
+        r.rpush "foo", "s1"
+        r.rpush "foo", "s2"
+
+        assert_equal 2, r.llen("foo")
+        assert_equal ["s2", "s1"], r.rpop("foo", 2)
+        assert_equal 0, r.llen("foo")
+      end
     end
 
     def test_linsert

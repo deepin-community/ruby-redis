@@ -51,6 +51,20 @@ module Lint
       end
     end
 
+    def test_set_with_exat
+      target_version "6.2" do
+        r.set("foo", "bar", exat: Time.now.to_i + 2)
+        assert_in_range 0..2, r.ttl("foo")
+      end
+    end
+
+    def test_set_with_pxat
+      target_version "6.2" do
+        r.set("foo", "bar", pxat: (1000 * Time.now.to_i) + 2000)
+        assert_in_range 0..2, r.ttl("foo")
+      end
+    end
+
     def test_set_with_nx
       target_version "2.6.12" do
         r.set("foo", "qux", nx: true)
@@ -83,6 +97,18 @@ module Lint
       end
     end
 
+    def test_set_with_get
+      target_version "6.2" do
+        r.set("foo", "qux")
+
+        assert_equal "qux", r.set("foo", "bar", get: true)
+        assert_equal "bar", r.get("foo")
+
+        assert_nil r.set("baz", "bar", get: true)
+        assert_equal "bar", r.get("baz")
+      end
+    end
+
     def test_setex
       assert r.setex("foo", 1, "bar")
       assert_equal "bar", r.get("foo")
@@ -112,6 +138,22 @@ module Lint
         assert r.psetex("foo", 1000, value)
         assert_equal value.to_s, r.get("foo")
         assert [0, 1].include? r.ttl("foo")
+      end
+    end
+
+    def test_getex
+      target_version "6.2" do
+        assert r.setex("foo", 1000, "bar")
+        assert_equal "bar", r.getex("foo", persist: true)
+        assert_equal(-1, r.ttl("foo"))
+      end
+    end
+
+    def test_getdel
+      target_version "6.2" do
+        assert r.set("foo", "bar")
+        assert_equal "bar", r.getdel("foo")
+        assert_nil r.get("foo")
       end
     end
 

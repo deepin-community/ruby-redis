@@ -1,4 +1,4 @@
-# redis-rb [![Build Status][travis-image]][travis-link] [![Inline docs][inchpages-image]][inchpages-link] ![](https://github.com/redis/redis-rb/workflows/Test/badge.svg?branch=master)
+# redis-rb [![Build Status][gh-actions-image]][gh-actions-link] [![Inline docs][inchpages-image]][inchpages-link]
 
 A Ruby client that tries to match [Redis][redis-home]' API one-to-one, while still
 providing an idiomatic interface.
@@ -52,6 +52,12 @@ To connect to a password protected Redis instance, use:
 
 ```ruby
 redis = Redis.new(password: "mysecret")
+```
+
+To connect a Redis instance using [ACL](https://redis.io/topics/acl), use:
+
+```ruby
+redis = Redis.new(username: 'myname', password: 'mysecret')
 ```
 
 The Redis class exports methods that are named identical to the commands
@@ -149,6 +155,21 @@ redis.mget('{key}1', '{key}2')
 * The client support permanent node failures, and will reroute requests to promoted slaves.
 * The client supports `MOVED` and `ASK` redirections transparently.
 
+## Cluster mode with SSL/TLS
+Since Redis can return FQDN of nodes in reply to client since `7.*` with CLUSTER commands, we can use cluster feature with SSL/TLS connection like this:
+
+```ruby
+Redis.new(cluster: %w[rediss://foo.example.com:6379])
+```
+
+On the other hand, in Redis versions prior to `6.*`, you can specify options like the following if cluster mode is enabled and client has to connect to nodes via single endpoint with SSL/TLS.
+
+```ruby
+Redis.new(cluster: %w[rediss://foo-endpoint.example.com:6379], fixed_hostname: 'foo-endpoint.example.com')
+```
+
+In case of the above architecture, if you don't pass the `fixed_hostname` option to the client and servers return IP addresses of nodes, the client may fail to verify certificates.
+
 ## Storing objects
 
 Redis "string" types can be used to store serialized Ruby objects, for
@@ -178,9 +199,9 @@ commands to Redis and gathers their replies. These replies are returned
 by the `#pipelined` method.
 
 ```ruby
-redis.pipelined do
-  redis.set "foo", "bar"
-  redis.incr "baz"
+redis.pipelined do |pipeline|
+  pipeline.set "foo", "bar"
+  pipeline.incr "baz"
 end
 # => ["OK", 1]
 ```
@@ -194,9 +215,9 @@ the regular pipeline, the replies to the commands are returned by the
 `#multi` method.
 
 ```ruby
-redis.multi do
-  redis.set "foo", "bar"
-  redis.incr "baz"
+redis.multi do |transaction|
+  transaction.set "foo", "bar"
+  transaction.incr "baz"
 end
 # => ["OK", 1]
 ```
@@ -204,15 +225,15 @@ end
 ### Futures
 
 Replies to commands in a pipeline can be accessed via the *futures* they
-emit (since redis-rb 3.0). All calls inside a pipeline block return a
+emit (since redis-rb 3.0). All calls on the pipeline object return a
 `Future` object, which responds to the `#value` method. When the
 pipeline has successfully executed, all futures are assigned their
 respective replies and can be used.
 
 ```ruby
-redis.pipelined do
-  @set = redis.set "foo", "bar"
-  @incr = redis.incr "baz"
+redis.pipelined do |pipeline|
+  @set = pipeline.set "foo", "bar"
+  @incr = pipeline.incr "baz"
 end
 
 @set.value
@@ -440,7 +461,7 @@ redis = Redis.new(:driver => :synchrony)
 ## Testing
 
 This library is tested against recent Ruby and Redis versions.
-Check [Travis][travis-link] for the exact versions supported.
+Check [Github Actions][gh-actions-link] for the exact versions supported.
 
 ## See Also
 
@@ -459,12 +480,11 @@ client and evangelized Redis in Rubyland. Thank you, Ezra.
 requests.
 
 
-[inchpages-image]: https://inch-ci.org/github/redis/redis-rb.svg
-[inchpages-link]:  https://inch-ci.org/github/redis/redis-rb
-[redis-commands]:  https://redis.io/commands
-[redis-home]:      https://redis.io
-[redis-url]:       http://www.iana.org/assignments/uri-schemes/prov/redis
-[travis-home]:     https://travis-ci.org/
-[travis-image]:    https://secure.travis-ci.org/redis/redis-rb.svg?branch=master
-[travis-link]:     https://travis-ci.org/redis/redis-rb
-[rubydoc]:         http://www.rubydoc.info/gems/redis
+[inchpages-image]:  https://inch-ci.org/github/redis/redis-rb.svg
+[inchpages-link]:   https://inch-ci.org/github/redis/redis-rb
+[redis-commands]:   https://redis.io/commands
+[redis-home]:       https://redis.io
+[redis-url]:        http://www.iana.org/assignments/uri-schemes/prov/redis
+[gh-actions-image]: https://github.com/redis/redis-rb/workflows/Test/badge.svg
+[gh-actions-link]:  https://github.com/redis/redis-rb/actions
+[rubydoc]:          http://www.rubydoc.info/gems/redis

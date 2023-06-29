@@ -9,9 +9,11 @@ $VERBOSE = true
 
 ENV["DRIVER"] ||= "ruby"
 
-require_relative "../lib/redis"
-require_relative "../lib/redis/distributed"
-require_relative "../lib/redis/connection/#{ENV['DRIVER']}"
+require "redis"
+Redis.silence_deprecations = true
+
+require "redis/distributed"
+require "redis/connection/#{ENV['DRIVER']}"
 
 require_relative "support/redis_mock"
 require_relative "support/connection/#{ENV['DRIVER']}"
@@ -23,8 +25,22 @@ TIMEOUT     = Float(ENV['TIMEOUT'] || 1.0)
 LOW_TIMEOUT = Float(ENV['LOW_TIMEOUT'] || 0.01) # for blocking-command tests
 OPTIONS     = { port: PORT, db: DB, timeout: TIMEOUT }.freeze
 
+if ENV['REDIS_SOCKET_PATH'].nil?
+  sock_file = File.expand_path('../tmp/redis.sock', __dir__)
+
+  unless File.exist?(sock_file)
+    abort "Couldn't locate the redis unix socket, did you run `make start`?"
+  end
+
+  ENV['REDIS_SOCKET_PATH'] = sock_file
+end
+
 def driver(*drivers, &blk)
   class_eval(&blk) if drivers.map(&:to_s).include?(ENV["DRIVER"])
+end
+
+Dir[File.expand_path('lint/**/*.rb', __dir__)].sort.each do |f|
+  require f
 end
 
 module Helper
@@ -89,8 +105,7 @@ module Helper
   module Generic
     include Helper
 
-    attr_reader :log
-    attr_reader :redis
+    attr_reader :log, :redis
 
     alias r redis
 
@@ -158,12 +173,37 @@ module Helper
       end
     end
 
+    def with_db(index)
+      r.select(index)
+      yield
+    end
+
     def omit_version(min_ver)
       skip("Requires Redis > #{min_ver}") if version < min_ver
     end
 
     def version
       Version.new(redis.info['redis_version'])
+    end
+
+    def with_acl
+      admin = _new_client
+      admin.acl('SETUSER', 'johndoe', 'on',
+                '+ping', '+select', '+command', '+cluster|slots', '+cluster|nodes',
+                '>mysecret')
+      yield('johndoe', 'mysecret')
+    ensure
+      admin.acl('DELUSER', 'johndoe')
+      admin.close
+    end
+
+    def with_default_user_password
+      admin = _new_client
+      admin.acl('SETUSER', 'default', '>mysecret')
+      yield('default', 'mysecret')
+    ensure
+      admin.acl('SETUSER', 'default', 'nopass')
+      admin.close
     end
   end
 

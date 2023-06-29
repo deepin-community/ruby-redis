@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "hash_ring"
+require "redis/hash_ring"
 
 class Redis
   class Distributed
@@ -115,13 +115,13 @@ class Redis
     end
 
     # Set a key's time to live in seconds.
-    def expire(key, seconds)
-      node_for(key).expire(key, seconds)
+    def expire(key, seconds, **kwargs)
+      node_for(key).expire(key, seconds, **kwargs)
     end
 
     # Set the expiration for a key as a UNIX timestamp.
-    def expireat(key, unix_time)
-      node_for(key).expireat(key, unix_time)
+    def expireat(key, unix_time, **kwargs)
+      node_for(key).expireat(key, unix_time, **kwargs)
     end
 
     # Get the time to live (in seconds) for a key.
@@ -130,13 +130,13 @@ class Redis
     end
 
     # Set a key's time to live in milliseconds.
-    def pexpire(key, milliseconds)
-      node_for(key).pexpire(key, milliseconds)
+    def pexpire(key, milliseconds, **kwarg)
+      node_for(key).pexpire(key, milliseconds, **kwarg)
     end
 
     # Set the expiration for a key as number of milliseconds from UNIX Epoch.
-    def pexpireat(key, ms_unix_time)
-      node_for(key).pexpireat(key, ms_unix_time)
+    def pexpireat(key, ms_unix_time, **kwarg)
+      node_for(key).pexpireat(key, ms_unix_time, **kwarg)
     end
 
     # Get the time to live (in milliseconds) for a key.
@@ -178,15 +178,11 @@ class Redis
     # Determine if a key exists.
     def exists(*args)
       if !Redis.exists_returns_integer && args.size == 1
-        message = "`Redis#exists(key)` will return an Integer in redis-rb 4.3, if you want to keep the old behavior, " \
+        ::Redis.deprecate!(
+          "`Redis#exists(key)` will return an Integer in redis-rb 4.3, if you want to keep the old behavior, " \
           "use `exists?` instead. To opt-in to the new behavior now you can set Redis.exists_returns_integer = true. " \
           "(#{::Kernel.caller(1, 1).first})\n"
-
-        if defined?(::Warning)
-          ::Warning.warn(message)
-        else
-          warn(message)
-        end
+        )
         exists?(*args)
       else
         keys_per_node = args.group_by { |key| node_for(key) }
@@ -213,6 +209,13 @@ class Redis
     # Move a key to another database.
     def move(key, db)
       node_for(key).move(key, db)
+    end
+
+    # Copy a value from one key to another.
+    def copy(source, destination, **options)
+      ensure_same_node(:copy, [source, destination]) do |node|
+        node.copy(source, destination, **options)
+      end
     end
 
     # Return a random key from the keyspace.
@@ -316,6 +319,16 @@ class Redis
       node_for(key).get(key)
     end
 
+    # Get the value of a key and delete it.
+    def getdel(key)
+      node_for(key).getdel(key)
+    end
+
+    # Get the value of a key and sets its time to live based on options.
+    def getex(key, **options)
+      node_for(key).getex(key, **options)
+    end
+
     # Get the values of all the given keys as an Array.
     def mget(*keys)
       mapped_mget(*keys).values_at(*keys)
@@ -393,6 +406,21 @@ class Redis
       node_for(key).llen(key)
     end
 
+    # Remove the first/last element in a list, append/prepend it to another list and return it.
+    def lmove(source, destination, where_source, where_destination)
+      ensure_same_node(:lmove, [source, destination]) do |node|
+        node.lmove(source, destination, where_source, where_destination)
+      end
+    end
+
+    # Remove the first/last element in a list and append/prepend it
+    # to another list and return it, or block until one is available.
+    def blmove(source, destination, where_source, where_destination, timeout: 0)
+      ensure_same_node(:lmove, [source, destination]) do |node|
+        node.blmove(source, destination, where_source, where_destination, timeout: timeout)
+      end
+    end
+
     # Prepend one or more values to a list.
     def lpush(key, value)
       node_for(key).lpush(key, value)
@@ -413,14 +441,14 @@ class Redis
       node_for(key).rpushx(key, value)
     end
 
-    # Remove and get the first element in a list.
-    def lpop(key)
-      node_for(key).lpop(key)
+    # Remove and get the first elements in a list.
+    def lpop(key, count = nil)
+      node_for(key).lpop(key, count)
     end
 
-    # Remove and get the last element in a list.
-    def rpop(key)
-      node_for(key).rpop(key)
+    # Remove and get the last elements in a list.
+    def rpop(key, count = nil)
+      node_for(key).rpop(key, count)
     end
 
     # Remove the last element in a list, append it to another list and return
@@ -436,12 +464,13 @@ class Redis
         options = args.pop
         options[:timeout]
       elsif args.last.respond_to?(:to_int)
-        # Issue deprecation notice in obnoxious mode...
-        args.pop.to_int
-      end
-
-      if args.size > 1
-        # Issue deprecation notice in obnoxious mode...
+        last_arg = args.pop
+        ::Redis.deprecate!(
+          "Passing the timeout as a positional argument is deprecated, it should be passed as a keyword argument:\n" \
+          "  redis.#{cmd}(#{args.map(&:inspect).join(', ')}, timeout: #{last_arg.to_int})" \
+          "(called from: #{caller(2, 1).first})"
+        )
+        last_arg.to_int
       end
 
       keys = args.flatten
@@ -515,9 +544,19 @@ class Redis
       node_for(key).sadd(key, member)
     end
 
+    # Add one or more members to a set.
+    def sadd?(key, member)
+      node_for(key).sadd?(key, member)
+    end
+
     # Remove one or more members from a set.
     def srem(key, member)
       node_for(key).srem(key, member)
+    end
+
+    # Remove one or more members from a set.
+    def srem?(key, member)
+      node_for(key).srem?(key, member)
     end
 
     # Remove and return a random member from a set.
@@ -540,6 +579,11 @@ class Redis
     # Determine if a given value is a member of a set.
     def sismember(key, member)
       node_for(key).sismember(key, member)
+    end
+
+    # Determine if multiple values are members of a set.
+    def smismember(key, *members)
+      node_for(key).smismember(key, *members)
     end
 
     # Get all the members in a set.
@@ -626,9 +670,27 @@ class Redis
       node_for(key).zscore(key, member)
     end
 
-    # Return a range of members in a sorted set, by index.
+    # Get one or more random members from a sorted set.
+    def zrandmember(key, count = nil, **options)
+      node_for(key).zrandmember(key, count, **options)
+    end
+
+    # Get the scores associated with the given members in a sorted set.
+    def zmscore(key, *members)
+      node_for(key).zmscore(key, *members)
+    end
+
+    # Return a range of members in a sorted set, by index, score or lexicographical ordering.
     def zrange(key, start, stop, **options)
       node_for(key).zrange(key, start, stop, **options)
+    end
+
+    # Select a range of members in a sorted set, by index, score or lexicographical ordering
+    # and store the resulting sorted set in a new key.
+    def zrangestore(dest_key, src_key, start, stop, **options)
+      ensure_same_node(:zrangestore, [dest_key, src_key]) do |node|
+        node.zrangestore(dest_key, src_key, start, stop, **options)
+      end
     end
 
     # Return a range of members in a sorted set, by index, with scores ordered
@@ -674,6 +736,13 @@ class Redis
       node_for(key).zcount(key, min, max)
     end
 
+    # Get the intersection of multiple sorted sets
+    def zinter(*keys, **options)
+      ensure_same_node(:zinter, keys) do |node|
+        node.zinter(*keys, **options)
+      end
+    end
+
     # Intersect multiple sorted sets and store the resulting sorted set in a new
     # key.
     def zinterstore(destination, keys, **options)
@@ -682,10 +751,32 @@ class Redis
       end
     end
 
+    # Return the union of multiple sorted sets.
+    def zunion(*keys, **options)
+      ensure_same_node(:zunion, keys) do |node|
+        node.zunion(*keys, **options)
+      end
+    end
+
     # Add multiple sorted sets and store the resulting sorted set in a new key.
     def zunionstore(destination, keys, **options)
       ensure_same_node(:zunionstore, [destination] + keys) do |node|
         node.zunionstore(destination, keys, **options)
+      end
+    end
+
+    # Return the difference between the first and all successive input sorted sets.
+    def zdiff(*keys, **options)
+      ensure_same_node(:zdiff, keys) do |node|
+        node.zdiff(*keys, **options)
+      end
+    end
+
+    # Compute the difference between the first and all successive input sorted sets
+    # and store the resulting sorted set in a new key.
+    def zdiffstore(destination, keys, **options)
+      ensure_same_node(:zdiffstore, [destination] + keys) do |node|
+        node.zdiffstore(destination, keys, **options)
       end
     end
 
@@ -725,6 +816,10 @@ class Redis
 
     def mapped_hmget(key, *fields)
       Hash[*fields.zip(hmget(key, *fields)).flatten]
+    end
+
+    def hrandfield(key, count = nil, **options)
+      node_for(key).hrandfield(key, count, **options)
     end
 
     # Delete one or more hash fields.

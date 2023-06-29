@@ -58,6 +58,18 @@ class Redis
         try_map { |_, client| client.process(commands, &block) }.values
       end
 
+      def scale_reading_clients
+        reading_clients = []
+
+        @clients.each do |node_key, client|
+          next unless replica_disabled? ? master?(node_key) : slave?(node_key)
+
+          reading_clients << client
+        end
+
+        reading_clients
+      end
+
       private
 
       def replica_disabled?
@@ -76,8 +88,9 @@ class Redis
         clients = options.map do |node_key, option|
           next if replica_disabled? && slave?(node_key)
 
+          option = option.merge(readonly: true) if slave?(node_key)
+
           client = Client.new(option)
-          client.call(%i[readonly]) if slave?(node_key)
           [node_key, client]
         end
 
