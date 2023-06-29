@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative "errors"
 require "socket"
 require "cgi"
+require "redis/errors"
 
 class Redis
   class Client
@@ -17,6 +17,7 @@ class Redis
       write_timeout: nil,
       connect_timeout: nil,
       timeout: 5.0,
+      username: nil,
       password: nil,
       db: 0,
       driver: nil,
@@ -31,7 +32,7 @@ class Redis
       role: nil
     }.freeze
 
-    attr_reader :options
+    attr_reader :options, :connection, :command_map
 
     def scheme
       @options[:scheme]
@@ -61,6 +62,10 @@ class Redis
       @options[:read_timeout]
     end
 
+    def username
+      @options[:username]
+    end
+
     def password
       @options[:password]
     end
@@ -82,8 +87,6 @@ class Redis
     end
 
     attr_accessor :logger
-    attr_reader :connection
-    attr_reader :command_map
 
     def initialize(options = {})
       @options = _parse_options(options)
@@ -110,7 +113,34 @@ class Redis
       # Don't try to reconnect when the connection is fresh
       with_reconnect(false) do
         establish_connection
-        call [:auth, password] if password
+        if password
+          if username
+            begin
+              call [:auth, username, password]
+            rescue CommandError => err # Likely on Redis < 6
+              case err.message
+              when /ERR wrong number of arguments for 'auth' command/
+                call [:auth, password]
+              when /WRONGPASS invalid username-password pair/
+                begin
+                  call [:auth, password]
+                rescue CommandError
+                  raise err
+                end
+                ::Redis.deprecate!(
+                  "[redis-rb] The Redis connection was configured with username #{username.inspect}, but" \
+                  " the provided password was for the default user. This will start failing in redis-rb 5.0.0."
+                )
+              else
+                raise
+              end
+            end
+          else
+            call [:auth, password]
+          end
+        end
+
+        call [:readonly] if @options[:readonly]
         call [:select, db] if db != 0
         call [:client, :setname, @options[:id]] if @options[:id]
         @connector.check(self)
@@ -120,7 +150,7 @@ class Redis
     end
 
     def id
-      @options[:id] || "redis://#{location}/#{db}"
+      @options[:id] || "#{@options[:ssl] ? 'rediss' : @options[:scheme]}://#{location}/#{db}"
     end
 
     def location
@@ -131,7 +161,7 @@ class Redis
       reply = process([command]) { read }
       raise reply if reply.is_a?(CommandError)
 
-      if block_given?
+      if block_given? && reply != 'QUEUED'
         yield reply
       else
         reply
@@ -221,7 +251,8 @@ class Redis
       result
     end
 
-    def call_with_timeout(command, timeout, &blk)
+    def call_with_timeout(command, extra_timeout, &blk)
+      timeout = extra_timeout == 0 ? 0 : self.timeout + extra_timeout
       with_socket_timeout(timeout) do
         call(command, &blk)
       end
@@ -271,7 +302,7 @@ class Redis
       e2 = TimeoutError.new("Connection timed out")
       e2.set_backtrace(e1.backtrace)
       raise e2
-    rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF, Errno::EINVAL => e
+    rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF, Errno::EINVAL, EOFError => e
       raise ConnectionError, "Connection lost (%s)" % [e.class.name.split("::").last]
     end
 
@@ -411,7 +442,7 @@ class Redis
       defaults = DEFAULTS.dup
       options = options.dup
 
-      defaults.keys.each do |key|
+      defaults.each_key do |key|
         # Fill in defaults if needed
         defaults[key] = defaults[key].call if defaults[key].respond_to?(:call)
 
@@ -428,13 +459,15 @@ class Redis
 
         uri = URI(url)
 
-        if uri.scheme == "unix"
+        case uri.scheme
+        when "unix"
           defaults[:path] = uri.path
-        elsif uri.scheme == "redis" || uri.scheme == "rediss"
+        when "redis", "rediss"
           defaults[:scheme]   = uri.scheme
-          defaults[:host]     = uri.host if uri.host
+          defaults[:host]     = uri.host.sub(/\A\[(.*)\]\z/, '\1') if uri.host
           defaults[:port]     = uri.port if uri.port
-          defaults[:password] = CGI.unescape(uri.password) if uri.password
+          defaults[:username] = CGI.unescape(uri.user) if uri.user && !uri.user.empty?
+          defaults[:password] = CGI.unescape(uri.password) if uri.password && !uri.password.empty?
           defaults[:db]       = uri.path[1..-1].to_i if uri.path
           defaults[:role] = :master
         else
@@ -445,7 +478,7 @@ class Redis
       end
 
       # Use default when option is not specified or nil
-      defaults.keys.each do |key|
+      defaults.each_key do |key|
         options[key] = defaults[key] if options[key].nil?
       end
 
@@ -510,7 +543,7 @@ class Redis
           require_relative "connection/#{driver}"
         rescue LoadError, NameError
           begin
-            require "connection/#{driver}"
+            require "redis/connection/#{driver}"
           rescue LoadError, NameError => error
             raise "Cannot load driver #{driver.inspect}: #{error.message}"
           end
@@ -579,6 +612,7 @@ class Redis
             client = Client.new(@options.merge({
                                                  host: sentinel[:host] || sentinel["host"],
                                                  port: sentinel[:port] || sentinel["port"],
+                                                 username: sentinel[:username] || sentinel["username"],
                                                  password: sentinel[:password] || sentinel["password"],
                                                  reconnect_attempts: 0
                                                }))

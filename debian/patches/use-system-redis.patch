@@ -9,22 +9,23 @@ Last-Update: 2020-09-27
 
 --- a/makefile
 +++ b/makefile
-@@ -1,16 +1,14 @@
--REDIS_BRANCH       ?= 6.0
+@@ -1,18 +1,16 @@
+-REDIS_BRANCH       ?= 7.0
+ ROOT_DIR           :=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
  TMP                := tmp
+ CONF               := ${ROOT_DIR}/test/support/conf/redis-${REDIS_BRANCH}.conf
 -BUILD_DIR          := ${TMP}/cache/redis-${REDIS_BRANCH}
 -TARBALL            := ${TMP}/redis-${REDIS_BRANCH}.tar.gz
 -BINARY             := ${BUILD_DIR}/src/redis-server
 -REDIS_CLIENT       := ${BUILD_DIR}/src/redis-cli
 -REDIS_TRIB         := ${BUILD_DIR}/src/redis-trib.rb
 -PID_PATH           := ${BUILD_DIR}/redis.pid
--SOCKET_PATH        := ${BUILD_DIR}/redis.sock
 +BUILD_DIR          := ${TMP}/cache/redis
 +BINARY             := /usr/bin/redis-server
 +REDIS_CLIENT       := /usr/bin/redis-cli
 +REDIS_TRIB         := /usr/share/doc/redis-tools/examples/redis-trib.rb
 +PID_PATH           := ${TMP}/redis.pid
-+SOCKET_PATH        := ${TMP}/redis.sock
+ SOCKET_PATH        := ${TMP}/redis.sock
  PORT               := 6381
  SLAVE_PORT         := 6382
 -SLAVE_PID_PATH     := ${BUILD_DIR}/redis_slave.pid
@@ -34,11 +35,11 @@ Last-Update: 2020-09-27
  HA_GROUP_NAME      := master1
  SENTINEL_PORTS     := 6400 6401 6402
  SENTINEL_PID_PATHS := $(addprefix ${TMP}/redis,$(addsuffix .pid,${SENTINEL_PORTS}))
-@@ -33,7 +31,6 @@
+@@ -35,7 +33,6 @@
  	@mkdir -p $@
  
  ${BINARY}: ${TMP}
 -	@bin/build ${REDIS_BRANCH} $<
  
  test:
- 	@env SOCKET_PATH=${SOCKET_PATH} bundle exec rake test
+ 	@env REDIS_SOCKET_PATH=${SOCKET_PATH} bundle exec rake test

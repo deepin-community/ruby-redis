@@ -11,7 +11,7 @@ Build-Depends: debhelper-compat (= 13),
                redis-tools,
                ruby,
                ruby-mocha
-Standards-Version: 4.5.1
+Standards-Version: 4.6.1
 Vcs-Git: https://salsa.debian.org/ruby-team/ruby-redis.git
 Vcs-Browser: https://salsa.debian.org/ruby-team/ruby-redis
 Homepage: https://github.com/redis/redis-rb
@@ -25,7 +25,7 @@ XB-Ruby-Versions: ${ruby:Versions}
 Depends: ${misc:Depends},
          ${ruby:Depends},
          ${shlibs:Depends}
-Breaks: ruby-fakeredis (<< 0.8.0-4~)
+Breaks: ruby-fakeredis (<< 0.8.0-6~)
 Description: Ruby client library for Redis
  A Ruby client that tries to match Redis' API one-to-one, while still
  providing an idiomatic interface. It features thread-safety,

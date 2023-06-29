@@ -1,5 +1,7 @@
+inherit_from: .rubocop_todo.yml
+
 AllCops:
-  TargetRubyVersion: 2.3
+  TargetRubyVersion: 2.4
 
 Layout/LineLength:
   Max: 120
@@ -22,6 +24,9 @@ Lint/UnifiedInteger:
   Enabled: false
 
 Lint/UnderscorePrefixedVariableName:
+  Enabled: false
+
+Lint/MissingSuper:
   Enabled: false
 
 Metrics/ClassLength:
@@ -51,6 +56,9 @@ Metrics/PerceivedComplexity:
 Style/PercentLiteralDelimiters:
   Enabled: false
 
+Style/TrailingCommaInArrayLiteral:
+  Enabled: false
+
 Style/ParallelAssignment:
   Enabled: false
 
@@ -63,9 +71,6 @@ Style/IfUnlessModifier:
 Style/SignalException:
   Exclude:
     - 'lib/redis/connection/synchrony.rb'
-
-Style/MethodMissingSuper:
-  Enabled: false
 
 Style/StringLiterals:
   Enabled: false
@@ -100,13 +105,19 @@ Style/WordArray:
 Lint/NonLocalExitFromIterator:
   Enabled: false
 
-Lint/EndAlignment:
+Layout/EndAlignment:
   EnforcedStyleAlignWith: variable
 
 Layout/ElseAlignment:
   Enabled: false
 
+Layout/RescueEnsureAlignment:
+  Enabled: false
+
 Naming/HeredocDelimiterNaming:
+  Enabled: false
+
+Naming/VariableNumber:
   Enabled: false
 
 Naming/FileName:
@@ -121,3 +132,13 @@ Naming/AccessorMethodName:
 
 Naming/MethodParameterName:
   Enabled: false
+
+Metrics/BlockNesting:
+  Enabled: false
+
+Style/HashTransformValues:
+  Enabled: false
+
+Style/SymbolProc:
+  Exclude:
+    - 'test/**/*'

@@ -78,11 +78,13 @@ class Redis
     end
 
     def call_pipeline(pipeline)
-      node_keys, command_keys = extract_keys_in_pipeline(pipeline)
-      raise CrossSlotPipeliningError, command_keys if node_keys.size > 1
+      node_keys = pipeline.commands.map { |cmd| find_node_key(cmd, primary_only: true) }.compact.uniq
+      if node_keys.size > 1
+        raise(CrossSlotPipeliningError,
+              pipeline.commands.map { |cmd| @command.extract_first_key(cmd) }.reject(&:empty?).uniq)
+      end
 
-      node = find_node(node_keys.first)
-      try_send(node, :call_pipeline, pipeline)
+      try_send(find_node(node_keys.first), :call_pipeline, pipeline)
     end
 
     def call_with_timeout(command, timeout, &block)
@@ -128,13 +130,14 @@ class Redis
     def send_command(command, &block)
       cmd = command.first.to_s.downcase
       case cmd
-      when 'auth', 'bgrewriteaof', 'bgsave', 'quit', 'save'
+      when 'acl', 'auth', 'bgrewriteaof', 'bgsave', 'quit', 'save'
         @node.call_all(command, &block).first
       when 'flushall', 'flushdb'
         @node.call_master(command, &block).first
       when 'wait'     then @node.call_master(command, &block).reduce(:+)
       when 'keys'     then @node.call_slave(command, &block).flatten.sort
       when 'dbsize'   then @node.call_slave(command, &block).reduce(:+)
+      when 'scan'     then _scan(command, &block)
       when 'lastsave' then @node.call_all(command, &block).sort
       when 'role'     then @node.call_all(command, &block)
       when 'config'   then send_config_command(command, &block)
@@ -236,6 +239,29 @@ class Redis
       raise
     end
 
+    def _scan(command, &block)
+      input_cursor = Integer(command[1])
+
+      client_index = input_cursor % 256
+      raw_cursor = input_cursor >> 8
+
+      clients = @node.scale_reading_clients
+
+      client = clients[client_index]
+      return ['0', []] unless client
+
+      command[1] = raw_cursor.to_s
+
+      result_cursor, result_keys = client.call(command, &block)
+      result_cursor = Integer(result_cursor)
+
+      if result_cursor == 0
+        client_index += 1
+      end
+
+      [((result_cursor << 8) + client_index).to_s, result_keys]
+    end
+
     def assign_redirection_node(err_msg)
       _, slot, node_key = err_msg.split(' ')
       slot = slot.to_i
@@ -253,14 +279,14 @@ class Redis
       find_node(node_key)
     end
 
-    def find_node_key(command)
+    def find_node_key(command, primary_only: false)
       key = @command.extract_first_key(command)
       return if key.empty?
 
       slot = KeySlotConverter.convert(key)
       return unless @slot.exists?(slot)
 
-      if @command.should_send_to_master?(command)
+      if @command.should_send_to_master?(command) || primary_only
         @slot.find_node_key_of_master(slot)
       else
         @slot.find_node_key_of_slave(slot)
@@ -284,12 +310,6 @@ class Redis
 
       @node.map(&:disconnect)
       @node, @slot = fetch_cluster_info!(@option)
-    end
-
-    def extract_keys_in_pipeline(pipeline)
-      node_keys = pipeline.commands.map { |cmd| find_node_key(cmd) }.compact.uniq
-      command_keys = pipeline.commands.map { |cmd| @command.extract_first_key(cmd) }.reject(&:empty?)
-      [node_keys, command_keys]
     end
   end
 end

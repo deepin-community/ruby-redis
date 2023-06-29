@@ -1,12 +1,14 @@
-REDIS_BRANCH       ?= 6.0
+REDIS_BRANCH       ?= 7.0
+ROOT_DIR           :=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TMP                := tmp
+CONF               := ${ROOT_DIR}/test/support/conf/redis-${REDIS_BRANCH}.conf
 BUILD_DIR          := ${TMP}/cache/redis-${REDIS_BRANCH}
 TARBALL            := ${TMP}/redis-${REDIS_BRANCH}.tar.gz
 BINARY             := ${BUILD_DIR}/src/redis-server
 REDIS_CLIENT       := ${BUILD_DIR}/src/redis-cli
 REDIS_TRIB         := ${BUILD_DIR}/src/redis-trib.rb
 PID_PATH           := ${BUILD_DIR}/redis.pid
-SOCKET_PATH        := ${BUILD_DIR}/redis.sock
+SOCKET_PATH        := ${TMP}/redis.sock
 PORT               := 6381
 SLAVE_PORT         := 6382
 SLAVE_PID_PATH     := ${BUILD_DIR}/redis_slave.pid
@@ -36,13 +38,14 @@ ${BINARY}: ${TMP}
 	@bin/build ${REDIS_BRANCH} $<
 
 test:
-	@env SOCKET_PATH=${SOCKET_PATH} bundle exec rake test
+	@env REDIS_SOCKET_PATH=${SOCKET_PATH} bundle exec rake test
 
 stop:
-	@$(call kill-redis,${PID_PATH})
+	@$(call kill-redis,${PID_PATH});\
 
 start: ${BINARY}
-	@${BINARY}\
+	@cp ${CONF} ${TMP}/redis.conf; \
+	${BINARY} ${TMP}/redis.conf \
 		--daemonize  yes\
 		--pidfile    ${PID_PATH}\
 		--port       ${PORT}\
@@ -79,14 +82,21 @@ start_sentinel: ${BINARY}
 			--sentinel;\
 	done
 
+wait_for_sentinel: MAX_ATTEMPTS_FOR_WAIT ?= 60
 wait_for_sentinel:
 	@for port in ${SENTINEL_PORTS}; do\
+		i=0;\
 		while : ; do\
+			if [ $${i} -ge ${MAX_ATTEMPTS_FOR_WAIT} ]; then\
+				echo "Max attempts exceeded: $${i} times";\
+				exit 1;\
+			fi;\
 			if [ $$(${REDIS_CLIENT} -p $${port} SENTINEL SLAVES ${HA_GROUP_NAME} | wc -l) -gt 1 ]; then\
 				break;\
 			fi;\
 			echo 'Waiting for Redis sentinel to be ready...';\
 			sleep 1;\
+			i=$$(( $${i}+1 ));\
 		done;\
 	done
 

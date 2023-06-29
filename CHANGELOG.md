@@ -1,5 +1,114 @@
 # Unreleased
 
+# 4.8.0
+
+* Introduce `sadd?` and `srem?` as boolean returning versions of `sadd` and `srem`.
+* Deprecate `sadd` and `srem` returning a boolean when called with a single argument.
+  To enable the redis 5.0 behavior you can set `Redis.sadd_returns_boolean = true`.
+* Deprecate passing `timeout` as a positional argument in blocking commands (`brpop`, `blop`, etc).
+
+# 4.7.1
+
+* Gracefully handle OpenSSL 3.0 EOF Errors (`OpenSSL::SSL::SSLError: SSL_read: unexpected eof while reading`). See #1106
+  This happens frequently on heroku-22.
+
+# 4.7.0
+
+* Support single endpoint architecture with SSL/TLS in cluster mode. See #1086.
+* `zrem` and `zadd` act as noop when provided an empty list of keys. See #1097.
+* Support IPv6 URLs.
+* Add `Redis#with` for better compatibility with `connection_pool` usage.
+* Fix the block form of `multi` called inside `pipelined`. Previously the `MUTLI/EXEC` wouldn't be sent. See #1073.
+
+# 4.6.0
+
+* Deprecate `Redis.current`.
+* Deprecate calling commands on `Redis` inside `Redis#pipelined`. See #1059.
+  ```ruby
+  redis.pipelined do
+    redis.get("key")
+  end
+  ```
+
+  should be replaced by:
+
+  ```ruby
+  redis.pipelined do |pipeline|
+    pipeline.get("key")
+  end
+  ```
+* Deprecate calling commands on `Redis` inside `Redis#multi`. See #1059.
+  ```ruby
+  redis.multi do
+    redis.get("key")
+  end
+  ```
+
+  should be replaced by:
+
+  ```ruby
+  redis.multi do |transaction|
+    transaction.get("key")
+  end
+  ```
+* Deprecate `Redis#queue` and `Redis#commit`. See #1059.
+
+* Fix `zpopmax` and `zpopmin` when called inside a pipeline. See #1055.
+* `Redis#synchronize` is now private like it should always have been.
+
+* Add `Redis.silence_deprecations=` to turn off deprecation warnings.
+  If you don't wish to see warnings yet, you can set `Redis.silence_deprecations = true`.
+  It is however heavily recommended to fix them instead when possible.
+* Add `Redis.raise_deprecations=` to turn deprecation warnings into errors.
+  This makes it easier to identitify the source of deprecated APIs usage.
+  It is recommended to set `Redis.raise_deprecations = true` in development and test environments.
+* Add new options to ZRANGE. See #1053.
+* Add ZRANGESTORE command. See #1053.
+* Add SCAN support for `Redis::Cluster`. See #1049.
+* Add COPY command. See #1053. See #1048.
+* Add ZDIFFSTORE command. See #1046.
+* Add ZDIFF command. See #1044.
+* Add ZUNION command. See #1042.
+* Add HRANDFIELD command. See #1040.
+
+# 4.5.1
+
+* Restore the accidential auth behavior of redis-rb 4.3.0 with a warning. If provided with the `default` user's password, but a wrong username,
+  redis-rb will first try to connect as the provided user, but then will fallback to connect as the `default` user with the provided password.
+  This behavior is deprecated and will be removed in Redis 4.6.0. Fix #1038.
+
+# 4.5.0
+
+* Handle parts of the command using incompatible encodings. See #1037.
+* Add GET option to SET command. See #1036.
+* Add ZRANDMEMBER command. See #1035.
+* Add LMOVE/BLMOVE commands. See #1034.
+* Add ZMSCORE command. See #1032.
+* Add LT/GT options to ZADD. See #1033.
+* Add SMISMEMBER command. See #1031.
+* Add EXAT/PXAT options to SET. See #1028.
+* Add GETDEL/GETEX commands. See #1024.
+* `Redis#exists` now returns an Integer by default, as warned since 4.2.0. The old behavior can be restored with `Redis.exists_returns_integer = false`.
+* Fix Redis < 6 detection during connect. See #1025.
+* Fix fetching command details in Redis cluster when the first node is unhealthy. See #1026.
+
+# 4.4.0
+
+* Redis cluster: fix cross-slot validation in pipelines. Fix ##1019.
+* Add support for `XAUTOCLAIM`. See #1018.
+* Properly issue `READONLY` when reconnecting to replicas. Fix #1017.
+* Make `del` a noop if passed an empty list of keys. See #998.
+* Add support for `ZINTER`. See #995.
+
+# 4.3.1
+
+* Fix password authentication against redis server 5 and older.
+
+# 4.3.0
+
+* Add the TYPE argument to scan and scan_each. See #985.
+* Support AUTH command for ACL. See #967.
+
 # 4.2.5
 
 * Optimize the ruby connector write buffering. See #964.

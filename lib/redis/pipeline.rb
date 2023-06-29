@@ -1,11 +1,80 @@
 # frozen_string_literal: true
 
+require "delegate"
+
 class Redis
+  class PipelinedConnection
+    def initialize(pipeline)
+      @pipeline = pipeline
+    end
+
+    include Commands
+
+    def db
+      @pipeline.db
+    end
+
+    def db=(db)
+      @pipeline.db = db
+    end
+
+    def pipelined
+      yield self
+    end
+
+    def call_pipeline(pipeline)
+      @pipeline.call_pipeline(pipeline)
+      nil
+    end
+
+    private
+
+    def synchronize
+      yield self
+    end
+
+    def send_command(command, &block)
+      @pipeline.call(command, &block)
+    end
+
+    def send_blocking_command(command, timeout, &block)
+      @pipeline.call_with_timeout(command, timeout, &block)
+    end
+  end
+
   class Pipeline
+    REDIS_INTERNAL_PATH = File.expand_path("..", __dir__).freeze
+    # Redis use MonitorMixin#synchronize and this class use DelegateClass which we want to filter out.
+    # Both are in the stdlib so we can simply filter the entire stdlib out.
+    STDLIB_PATH = File.expand_path("..", MonitorMixin.instance_method(:synchronize).source_location.first).freeze
+
+    class << self
+      def deprecation_warning(method, caller_locations) # :nodoc:
+        callsite = caller_locations.find { |l| !l.path.start_with?(REDIS_INTERNAL_PATH, STDLIB_PATH) }
+        callsite ||= caller_locations.last # The caller_locations should be large enough, but just in case.
+        ::Redis.deprecate! <<~MESSAGE
+          Pipelining commands on a Redis instance is deprecated and will be removed in Redis 5.0.0.
+
+          redis.#{method} do
+            redis.get("key")
+          end
+
+          should be replaced by
+
+          redis.#{method} do |pipeline|
+            pipeline.get("key")
+          end
+
+          (called from #{callsite}}
+        MESSAGE
+      end
+    end
+
     attr_accessor :db
     attr_reader :client
 
     attr :futures
+    alias materialized_futures futures
 
     def initialize(client)
       @client = client.is_a?(Pipeline) ? client.client : client
@@ -49,7 +118,7 @@ class Redis
 
     def call_pipeline(pipeline)
       @shutdown = true if pipeline.shutdown?
-      @futures.concat(pipeline.futures)
+      @futures.concat(pipeline.materialized_futures)
       @db = pipeline.db
       nil
     end
@@ -106,6 +175,18 @@ class Redis
         end
       end
 
+      def materialized_futures
+        if empty?
+          []
+        else
+          [
+            Future.new([:multi], nil, 0),
+            *futures,
+            MultiFuture.new(futures)
+          ]
+        end
+      end
+
       def timeouts
         if empty?
           []
@@ -121,6 +202,36 @@ class Redis
           [[:multi]] + super + [[:exec]]
         end
       end
+    end
+  end
+
+  class DeprecatedPipeline < DelegateClass(Pipeline)
+    def initialize(pipeline)
+      super(pipeline)
+      @deprecation_displayed = false
+    end
+
+    def __getobj__
+      unless @deprecation_displayed
+        Pipeline.deprecation_warning("pipelined", Kernel.caller_locations(1, 10))
+        @deprecation_displayed = true
+      end
+      @delegate_dc_obj
+    end
+  end
+
+  class DeprecatedMulti < DelegateClass(Pipeline::Multi)
+    def initialize(pipeline)
+      super(pipeline)
+      @deprecation_displayed = false
+    end
+
+    def __getobj__
+      unless @deprecation_displayed
+        Pipeline.deprecation_warning("multi", Kernel.caller_locations(1, 10))
+        @deprecation_displayed = true
+      end
+      @delegate_dc_obj
     end
   end
 
@@ -143,11 +254,11 @@ class Redis
     end
 
     def ==(_other)
-      message = +"The methods == and != are deprecated for Redis::Future and will be removed in 4.2.0"
+      message = +"The methods == and != are deprecated for Redis::Future and will be removed in 5.0.0"
       message << " - You probably meant to call .value == or .value !="
       message << " (#{::Kernel.caller(1, 1).first})\n"
 
-      ::Kernel.warn(message)
+      ::Redis.deprecate!(message)
 
       super
     end
@@ -176,6 +287,20 @@ class Redis
 
     def class
       Future
+    end
+  end
+
+  class MultiFuture < Future
+    def initialize(futures)
+      @futures = futures
+      @command = [:exec]
+    end
+
+    def _set(replies)
+      @futures.each_with_index do |future, index|
+        future._set(replies[index])
+      end
+      replies
     end
   end
 end

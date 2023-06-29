@@ -3,6 +3,7 @@
 module Lint
   module Streams
     MIN_REDIS_VERSION = '4.9.0'
+    MIN_REDIS_VERSION_XAUTOCLAIM = '6.2.0'
     ENTRY_ID_FORMAT = /\d+-\d+/.freeze
 
     def setup
@@ -116,10 +117,17 @@ module Lint
     end
 
     def test_xtrim_with_invalid_arguments
-      assert_equal 0, redis.xtrim('', '')
-      assert_equal 0, redis.xtrim(nil, nil)
-      assert_equal 0, redis.xtrim('s1', 0)
-      assert_equal 0, redis.xtrim('s1', -1, approximate: true)
+      if version >= '6.2'
+        assert_raises(Redis::CommandError) { redis.xtrim('', '') }
+        assert_raises(Redis::CommandError) { redis.xtrim(nil, nil) }
+        assert_equal 0, redis.xtrim('s1', 0)
+        assert_raises(Redis::CommandError) { redis.xtrim('s1', -1, approximate: true) }
+      else
+        assert_equal 0, redis.xtrim('', '')
+        assert_equal 0, redis.xtrim(nil, nil)
+        assert_equal 0, redis.xtrim('s1', 0)
+        assert_equal 0, redis.xtrim('s1', -1, approximate: true)
+      end
     end
 
     def test_xdel_with_splatted_entry_ids
@@ -483,6 +491,17 @@ module Lint
       assert_raises(Redis::CommandError) { redis.xreadgroup('g1', 'c1', 's1', %w[> >]) }
     end
 
+    def test_xreadgroup_a_trimmed_entry
+      redis.xgroup(:create, 'k1', 'g1', '0', mkstream: true)
+      entry_id = redis.xadd('k1', { value: 'v1' })
+
+      assert_equal({ 'k1' => [[entry_id, { 'value' => 'v1' }]] }, redis.xreadgroup('g1', 'c1', 'k1', '>'))
+      assert_equal({ 'k1' => [[entry_id, { 'value' => 'v1' }]] }, redis.xreadgroup('g1', 'c1', 'k1', '0'))
+      redis.xtrim('k1', 0)
+
+      assert_equal({ 'k1' => [[entry_id, nil]] }, redis.xreadgroup('g1', 'c1', 'k1', '0'))
+    end
+
     def test_xack_with_a_entry_id
       redis.xadd('s1', { f: 'v1' }, id: '0-1')
       redis.xgroup(:create, 's1', 'g1', '$')
@@ -624,6 +643,72 @@ module Lint
     def test_xclaim_with_invalid_arguments
       assert_raises(Redis::CommandError) { redis.xclaim(nil, nil, nil, nil, nil) }
       assert_raises(Redis::CommandError) { redis.xclaim('', '', '', '', '') }
+    end
+
+    def test_xautoclaim
+      omit_version(MIN_REDIS_VERSION_XAUTOCLAIM)
+
+      redis.xadd('s1', { f: 'v1' }, id: '0-1')
+      redis.xgroup(:create, 's1', 'g1', '$')
+      redis.xadd('s1', { f: 'v2' }, id: '0-2')
+      redis.xadd('s1', { f: 'v3' }, id: '0-3')
+      redis.xreadgroup('g1', 'c1', 's1', '>')
+      sleep 0.01
+
+      actual = redis.xautoclaim('s1', 'g1', 'c2', 10, '0-0')
+
+      assert_equal '0-0', actual['next']
+      assert_equal %w(0-2 0-3), actual['entries'].map(&:first)
+      assert_equal(%w(v2 v3), actual['entries'].map { |i| i.last['f'] })
+    end
+
+    def test_xautoclaim_with_justid_option
+      omit_version(MIN_REDIS_VERSION_XAUTOCLAIM)
+
+      redis.xadd('s1', { f: 'v1' }, id: '0-1')
+      redis.xgroup(:create, 's1', 'g1', '$')
+      redis.xadd('s1', { f: 'v2' }, id: '0-2')
+      redis.xadd('s1', { f: 'v3' }, id: '0-3')
+      redis.xreadgroup('g1', 'c1', 's1', '>')
+      sleep 0.01
+
+      actual = redis.xautoclaim('s1', 'g1', 'c2', 10, '0-0', justid: true)
+
+      assert_equal '0-0', actual['next']
+      assert_equal %w(0-2 0-3), actual['entries']
+    end
+
+    def test_xautoclaim_with_count_option
+      omit_version(MIN_REDIS_VERSION_XAUTOCLAIM)
+
+      redis.xadd('s1', { f: 'v1' }, id: '0-1')
+      redis.xgroup(:create, 's1', 'g1', '$')
+      redis.xadd('s1', { f: 'v2' }, id: '0-2')
+      redis.xadd('s1', { f: 'v3' }, id: '0-3')
+      redis.xreadgroup('g1', 'c1', 's1', '>')
+      sleep 0.01
+
+      actual = redis.xautoclaim('s1', 'g1', 'c2', 10, '0-0', count: 1)
+
+      assert_equal '0-3', actual['next']
+      assert_equal %w(0-2), actual['entries'].map(&:first)
+      assert_equal(%w(v2), actual['entries'].map { |i| i.last['f'] })
+    end
+
+    def test_xautoclaim_with_larger_interval
+      omit_version(MIN_REDIS_VERSION_XAUTOCLAIM)
+
+      redis.xadd('s1', { f: 'v1' }, id: '0-1')
+      redis.xgroup(:create, 's1', 'g1', '$')
+      redis.xadd('s1', { f: 'v2' }, id: '0-2')
+      redis.xadd('s1', { f: 'v3' }, id: '0-3')
+      redis.xreadgroup('g1', 'c1', 's1', '>')
+      sleep 0.01
+
+      actual = redis.xautoclaim('s1', 'g1', 'c2', 36_000, '0-0')
+
+      assert_equal '0-0', actual['next']
+      assert_equal [], actual['entries']
     end
 
     def test_xpending
